@@ -38,14 +38,14 @@ type RateChangeAlert struct {
 }
 
 func NewRateChangeAlert(vaultID, nickname, marketPair string, prevRate, currRate float64) *RateChangeAlert {
-	changePercent := ((currRate - prevRate) / prevRate) * 100.0
+	changePoints := currRate - prevRate // This is now in percentage points
 	return &RateChangeAlert{
 		VaultID:       vaultID,
 		Nickname:      nickname,
 		MarketPair:    marketPair,
 		PreviousRate:  prevRate,
 		CurrentRate:   currRate,
-		ChangePercent: changePercent,
+		ChangePercent: changePoints, // This is now in percentage points
 		Timestamp:     time.Now(),
 	}
 }
@@ -62,7 +62,7 @@ func (r *RateChangeAlert) ToDiscordMessage() string {
 		"%s **Rate Alert: %s**\n\n"+
 			"**Current Rate: %.2f%%**\n"+
 			"Previous Rate: %.2f%%\n"+
-			"Change: %s by %.2f%%\n\n"+
+			"Change: %s by %.2f percentage points\n\n"+
 			"<t:%d:R>",
 		icon,
 		r.Nickname,

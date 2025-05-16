@@ -140,12 +140,12 @@ func (m *Monitor) checkRates(ctx context.Context) error {
 			continue
 		}
 
-		// Calculate rate change
+		// Calculate rate change in percentage points
 		rateChange := data.BorrowRate - lastRate
-		rateChangePercent := math.Abs((rateChange / lastRate) * 100)
+		rateChangePoints := math.Abs(rateChange) // This is now in percentage points
 
-		// Only create status embed if there's an actual change
-		if rateChange != 0 {
+		// Only create status embed if change exceeds threshold
+		if rateChangePoints >= vaultConfig.ThresholdPercent {
 			// Create embed for rate status
 			color := 0xff0000 // Red for increase (bad for borrowers)
 			if rateChange < 0 {
@@ -189,7 +189,7 @@ func (m *Monitor) checkRates(ctx context.Context) error {
 		}
 
 		// Check if rate change exceeds threshold (both increases and decreases)
-		if rateChangePercent >= vaultConfig.ThresholdPercent {
+		if rateChangePoints >= vaultConfig.ThresholdPercent {
 			// Create alert using the existing alert format
 			alert := types.NewRateChangeAlert(
 				vaultConfig.VaultID,
@@ -259,10 +259,10 @@ func (m *Monitor) processMarketData(marketData *types.MarketData) error {
 
 	// Check if we should send an alert
 	if hasPreviousRate {
-		changePercent := math.Abs((currentRate - previousRate) / previousRate * 100)
+		changePoints := math.Abs(currentRate - previousRate) // This is now in percentage points
 
 		// Alert on both increases and decreases that exceed threshold
-		if changePercent >= vault.ThresholdPercent {
+		if changePoints >= vault.ThresholdPercent {
 			alert := types.NewRateChangeAlert(
 				vault.VaultID,
 				vault.Nickname,
