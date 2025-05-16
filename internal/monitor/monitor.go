@@ -144,51 +144,52 @@ func (m *Monitor) checkRates(ctx context.Context) error {
 		rateChange := data.BorrowRate - lastRate
 		rateChangePercent := math.Abs((rateChange / lastRate) * 100)
 
-		// Create embed for rate status
-		color := 0xff0000 // Red for increase (bad for borrowers)
-		if rateChange < 0 {
-			color = 0x00ff00 // Green for decrease (good for borrowers)
-		} else if rateChange == 0 {
-			color = 0x808080 // Gray for no change
+		// Only create status embed if there's an actual change
+		if rateChange != 0 {
+			// Create embed for rate status
+			color := 0xff0000 // Red for increase (bad for borrowers)
+			if rateChange < 0 {
+				color = 0x00ff00 // Green for decrease (good for borrowers)
+			}
+
+			fields := []types.DiscordEmbedField{
+				{
+					Name:   fmt.Sprintf("**Current Rate:** %.2f%%", data.BorrowRate),
+					Value:  " ",
+					Inline: false,
+				},
+				{
+					Name:   "Market Pair",
+					Value:  vaultConfig.MarketPair,
+					Inline: true,
+				},
+				{
+					Name:   "Previous Rate",
+					Value:  fmt.Sprintf("%.2f%%", lastRate),
+					Inline: true,
+				},
+				{
+					Name:   "Change",
+					Value:  fmt.Sprintf("%+.2f%%", rateChange),
+					Inline: true,
+				},
+			}
+
+			embed := types.DiscordEmbed{
+				Title:       fmt.Sprintf("Rate Status: %s", vaultConfig.Nickname),
+				Description: "",
+				Color:       color,
+				Fields:      fields,
+				Timestamp:   time.Now().Format(time.RFC3339),
+				Footer: &types.DiscordEmbedFooter{
+					Text: "SummerRateChecker",
+				},
+			}
+			embeds = append(embeds, embed)
 		}
 
-		fields := []types.DiscordEmbedField{
-			{
-				Name:   fmt.Sprintf("**Current Rate:** %.2f%%", data.BorrowRate),
-				Value:  " ",
-				Inline: false,
-			},
-			{
-				Name:   "Market Pair",
-				Value:  vaultConfig.MarketPair,
-				Inline: true,
-			},
-			{
-				Name:   "Previous Rate",
-				Value:  fmt.Sprintf("%.2f%%", lastRate),
-				Inline: true,
-			},
-			{
-				Name:   "Change",
-				Value:  fmt.Sprintf("%+.2f%%", rateChange),
-				Inline: true,
-			},
-		}
-
-		embed := types.DiscordEmbed{
-			Title:       fmt.Sprintf("Rate Status: %s", vaultConfig.Nickname),
-			Description: "",
-			Color:       color,
-			Fields:      fields,
-			Timestamp:   time.Now().Format(time.RFC3339),
-			Footer: &types.DiscordEmbedFooter{
-				Text: "SummerRateChecker",
-			},
-		}
-		embeds = append(embeds, embed)
-
-		// Check if rate change exceeds threshold
-		if rateChangePercent > 0 && rateChangePercent >= vaultConfig.ThresholdPercent {
+		// Check if rate change exceeds threshold (both increases and decreases)
+		if rateChangePercent >= vaultConfig.ThresholdPercent {
 			// Create alert using the existing alert format
 			alert := types.NewRateChangeAlert(
 				vaultConfig.VaultID,
@@ -260,7 +261,8 @@ func (m *Monitor) processMarketData(marketData *types.MarketData) error {
 	if hasPreviousRate {
 		changePercent := math.Abs((currentRate - previousRate) / previousRate * 100)
 
-		if changePercent > 0 && changePercent >= vault.ThresholdPercent {
+		// Alert on both increases and decreases that exceed threshold
+		if changePercent >= vault.ThresholdPercent {
 			alert := types.NewRateChangeAlert(
 				vault.VaultID,
 				vault.Nickname,
