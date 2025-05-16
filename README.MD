@@ -13,11 +13,12 @@ A Go-powered Discord bot that monitors Summer.fi vault interest rates and sends 
 - 🔄 Automatic market pair detection from Summer.fi URLs
 - 🕒 Customizable check intervals
 - 📝 Support for quoted nicknames with spaces
+- 🔐 Automatic webhook management per channel
 
 ## Requirements
 
 - Go 1.20 or newer
-- A Discord bot token and webhook URL
+- A Discord bot token
 
 ## Configuration
 
@@ -37,16 +38,10 @@ Download and install Go from [golang.org](https://golang.org/dl/)
 4. Copy the bot token
 5. Under "OAuth2" → "URL Generator":
    - Select "bot" scope
-   - Select "Send Messages", "Embed Links" permissions
+   - Select "Send Messages", "Embed Links", "Manage Webhooks" permissions
    - Invite bot to your server
 
-### 3. Set up Discord Webhook (Optional)
-
-1. In your Discord server, go to Server Settings → Integrations
-2. Create a webhook for the channel where you want alerts
-3. Copy the webhook URL
-
-### 4. Configure the Bot
+### 3. Configure the Bot
 
 **Configuration File**
 Copy `config.toml.example` to `config.toml` and fill in values:
@@ -54,13 +49,12 @@ Copy `config.toml.example` to `config.toml` and fill in values:
 [discord]
 token = "your_bot_token"
 guild_id = "123456789012345678"
-webhook_url = "https://discord.com/api/webhooks/..."
 
 [monitor]
 check_interval_minutes = 60
 ```
 
-### 5. Build and Run
+### 4. Build and Run
 
 ```bash
 # Clone the repository

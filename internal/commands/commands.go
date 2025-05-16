@@ -300,8 +300,16 @@ func handleEnroll(s *discordgo.Session, i *discordgo.InteractionCreate, ctx *Com
 		channelID = options[3].ChannelValue(s).ID
 	}
 
+	// Create a webhook for the channel
+	webhook, err := s.WebhookCreate(channelID, "SummerRateChecker", "")
+	if err != nil {
+		return fmt.Errorf("failed to create webhook for channel: %w", err)
+	}
+
 	urlInfo, err := morpho.ParseVaultURL(url)
 	if err != nil {
+		// Clean up webhook if URL parsing fails
+		s.WebhookDelete(webhook.ID)
 		return fmt.Errorf("invalid Summer.fi URL: %v", err)
 	}
 
@@ -310,11 +318,14 @@ func handleEnroll(s *discordgo.Session, i *discordgo.InteractionCreate, ctx *Com
 		Nickname:         nickname,
 		ThresholdPercent: threshold,
 		ChannelID:        channelID,
+		WebhookURL:       fmt.Sprintf("https://discord.com/api/webhooks/%s/%s", webhook.ID, webhook.Token),
 		MarketPair:       urlInfo.MarketPair,
 	}
 
 	err = ctx.Storage.AddVault(vault)
 	if err != nil {
+		// Clean up webhook if storage fails
+		s.WebhookDelete(webhook.ID)
 		return fmt.Errorf("failed to enroll vault: %w", err)
 	}
 
@@ -342,6 +353,18 @@ func handleUnenroll(s *discordgo.Session, i *discordgo.InteractionCreate, ctx *C
 
 	if vault == nil {
 		return fmt.Errorf("vault `%s` not found", vaultID)
+	}
+
+	// Delete the webhook if it exists
+	if vault.WebhookURL != "" {
+		// Extract webhook ID from URL
+		parts := strings.Split(vault.WebhookURL, "/")
+		if len(parts) >= 2 {
+			webhookID := parts[len(parts)-2]
+			if err := s.WebhookDelete(webhookID); err != nil {
+				ctx.Logger.Warnf("Failed to delete webhook for vault %s: %v", vaultID, err)
+			}
+		}
 	}
 
 	err = ctx.Storage.RemoveVault(vaultID)

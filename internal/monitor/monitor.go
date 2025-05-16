@@ -214,7 +214,7 @@ func (m *Monitor) checkRates(ctx context.Context) error {
 	// Send status embeds to all unique channels
 	channelMap := make(map[string]bool)
 	for _, vault := range vaults {
-		if !channelMap[vault.ChannelID] {
+		if !channelMap[vault.ChannelID] && vault.WebhookURL != "" {
 			payload := types.DiscordWebhookPayload{
 				Embeds: embeds,
 			}
@@ -224,7 +224,7 @@ func (m *Monitor) checkRates(ctx context.Context) error {
 				continue
 			}
 
-			resp, err := m.httpClient.Post(m.config.Discord.WebhookURL, "application/json", bytes.NewBuffer(jsonData))
+			resp, err := m.httpClient.Post(vault.WebhookURL, "application/json", bytes.NewBuffer(jsonData))
 			if err != nil {
 				m.logger.Errorf("Failed to send webhook: %v", err)
 				continue
@@ -288,8 +288,17 @@ func (m *Monitor) processMarketData(marketData *types.MarketData) error {
 }
 
 func (m *Monitor) sendDiscordAlert(alert *types.RateChangeAlert, channelID string) error {
-	if m.config.Discord.WebhookURL == "" {
-		m.logger.Warn("No webhook URL configured, skipping alert")
+	vault, err := m.storage.GetVault(alert.VaultID)
+	if err != nil {
+		return fmt.Errorf("failed to get vault config: %w", err)
+	}
+
+	if vault == nil {
+		return fmt.Errorf("vault %s not found", alert.VaultID)
+	}
+
+	if vault.WebhookURL == "" {
+		m.logger.Warnf("No webhook URL configured for vault %s, skipping alert", alert.VaultID)
 		return nil
 	}
 
@@ -301,7 +310,7 @@ func (m *Monitor) sendDiscordAlert(alert *types.RateChangeAlert, channelID strin
 	}
 
 	resp, err := m.httpClient.Post(
-		m.config.Discord.WebhookURL,
+		vault.WebhookURL,
 		"application/json",
 		bytes.NewBuffer(jsonData),
 	)
@@ -317,77 +326,37 @@ func (m *Monitor) sendDiscordAlert(alert *types.RateChangeAlert, channelID strin
 	return nil
 }
 
-func (m *Monitor) sendRateAlert(vault *types.VaultConfig, oldRate, newRate float64) error {
-	// Calculate rate change and direction
-	rateChange := newRate - oldRate
-	direction := "increased"
-	if rateChange < 0 {
-		direction = "decreased"
-		rateChange = -rateChange
-	}
-
-	// Create alert message
-	message := fmt.Sprintf("📈 Rate Alert: %s\n"+
-		"Borrow rate %s from %.2f%% to %.2f%% (+%.2f%%)\n\n"+
-		"Vault ID: %s\n"+
-		"Previous Rate: %.2f%%\n"+
-		"Current Rate: %.2f%%\n"+
-		"Change: +%.2f%%",
-		vault.Nickname,
-		direction, oldRate, newRate, rateChange,
-		vault.VaultID,
-		oldRate, newRate, rateChange)
-
-	// Send to Discord channel if configured
-	if m.config.Discord.WebhookURL != "" {
-		payload := map[string]interface{}{
-			"content": message,
-		}
-
-		jsonData, err := json.Marshal(payload)
-		if err != nil {
-			return fmt.Errorf("failed to marshal webhook payload: %w", err)
-		}
-
-		resp, err := m.httpClient.Post(m.config.Discord.WebhookURL, "application/json", bytes.NewBuffer(jsonData))
-		if err != nil {
-			return fmt.Errorf("failed to send webhook: %w", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-			return fmt.Errorf("webhook request failed with status %d", resp.StatusCode)
-		}
-	}
-
-	return nil
-}
-
 func (m *Monitor) sendAlert(channelID, message string) {
-	if m.config.Discord.WebhookURL == "" {
-		m.logger.Warn("No webhook URL configured, skipping alert")
-		return
-	}
-
-	payload := map[string]interface{}{
-		"content": message,
-	}
-
-	jsonData, err := json.Marshal(payload)
+	vaults, err := m.storage.GetAllVaults()
 	if err != nil {
-		m.logger.Errorf("Failed to marshal webhook payload: %v", err)
+		m.logger.Errorf("Failed to get vaults: %v", err)
 		return
 	}
 
-	resp, err := m.httpClient.Post(m.config.Discord.WebhookURL, "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		m.logger.Errorf("Failed to send webhook: %v", err)
-		return
-	}
-	defer resp.Body.Close()
+	// Find vaults that use this channel
+	for _, vault := range vaults {
+		if vault.ChannelID == channelID && vault.WebhookURL != "" {
+			payload := map[string]interface{}{
+				"content": message,
+			}
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		m.logger.Errorf("Webhook request failed with status %d", resp.StatusCode)
+			jsonData, err := json.Marshal(payload)
+			if err != nil {
+				m.logger.Errorf("Failed to marshal webhook payload: %v", err)
+				continue
+			}
+
+			resp, err := m.httpClient.Post(vault.WebhookURL, "application/json", bytes.NewBuffer(jsonData))
+			if err != nil {
+				m.logger.Errorf("Failed to send webhook: %v", err)
+				continue
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+				m.logger.Errorf("Webhook request failed with status %d", resp.StatusCode)
+			}
+		}
 	}
 }
 

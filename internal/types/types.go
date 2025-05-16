@@ -12,6 +12,7 @@ type VaultConfig struct {
 	Nickname         string    `json:"nickname"`
 	ThresholdPercent float64   `json:"threshold_percent"`
 	ChannelID        string    `json:"channel_id"`
+	WebhookURL       string    `json:"webhook_url,omitempty"` // Discord webhook URL for this vault's channel
 	CreatedAt        time.Time `json:"created_at"`
 	MorphoMarketKey  string    `json:"morpho_market_key,omitempty"` // The Morpho market unique key for this vault
 	MarketPair       string    `json:"market_pair,omitempty"`       // The market pair (e.g., "WBTC-USDC")

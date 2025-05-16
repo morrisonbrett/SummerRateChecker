@@ -15,9 +15,8 @@ type Config struct {
 }
 
 type Discord struct {
-	Token      string `mapstructure:"token"`
-	GuildID    string `mapstructure:"guild_id"`
-	WebhookURL string `mapstructure:"webhook_url"`
+	Token   string `mapstructure:"token"`
+	GuildID string `mapstructure:"guild_id"`
 }
 
 type Morpho struct {
