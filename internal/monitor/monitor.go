@@ -114,6 +114,11 @@ func (m *Monitor) checkRates(ctx context.Context) error {
 			if err := m.storage.UpdateLastRate(vaultConfig.VaultID, data.BorrowRate); err != nil {
 				m.logger.Errorf("Failed to update last rate for %s: %v", vaultConfig.VaultID, err)
 			}
+			// Also set this as the last alert rate
+			vaultConfig.LastAlertRate = data.BorrowRate
+			if err := m.storage.AddVault(vaultConfig); err != nil {
+				m.logger.Errorf("Failed to update last alert rate for %s: %v", vaultConfig.VaultID, err)
+			}
 			// Create embed for first check
 			embed := types.DiscordEmbed{
 				Title:       fmt.Sprintf("Rate Status: %s", vaultConfig.Nickname),
@@ -140,8 +145,13 @@ func (m *Monitor) checkRates(ctx context.Context) error {
 			continue
 		}
 
-		// Calculate rate change in percentage points
-		rateChange := data.BorrowRate - lastRate
+		// Calculate rate change in percentage points from the last alert rate
+		// If LastAlertRate is not set (0), use the last check rate
+		compareRate := vaultConfig.LastAlertRate
+		if compareRate == 0 {
+			compareRate = lastRate
+		}
+		rateChange := data.BorrowRate - compareRate
 		rateChangePoints := math.Abs(rateChange) // This is now in percentage points
 
 		// Only send messages if there's an actual change that exceeds the threshold
@@ -151,13 +161,19 @@ func (m *Monitor) checkRates(ctx context.Context) error {
 				vaultConfig.VaultID,
 				vaultConfig.Nickname,
 				vaultConfig.MarketPair,
-				lastRate,
+				compareRate, // Use the comparison rate (last alert or last check)
 				data.BorrowRate,
 			)
 
 			// Send alert
 			if err := m.sendDiscordAlert(alert, vaultConfig.ChannelID); err != nil {
 				m.logger.Errorf("Failed to send Discord alert: %v", err)
+			}
+
+			// Update the last alert rate
+			vaultConfig.LastAlertRate = data.BorrowRate
+			if err := m.storage.AddVault(vaultConfig); err != nil {
+				m.logger.Errorf("Failed to update last alert rate for %s: %v", vaultConfig.VaultID, err)
 			}
 		}
 

@@ -16,6 +16,7 @@ type VaultConfig struct {
 	CreatedAt        time.Time `json:"created_at"`
 	MorphoMarketKey  string    `json:"morpho_market_key,omitempty"` // The Morpho market unique key for this vault
 	MarketPair       string    `json:"market_pair,omitempty"`       // The market pair (e.g., "WBTC-USDC")
+	LastAlertRate    float64   `json:"last_alert_rate,omitempty"`   // The rate that last triggered an alert
 }
 
 // MarketData represents the current market data for a vault
